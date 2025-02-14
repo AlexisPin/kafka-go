@@ -12,6 +12,7 @@ type ErrorCode int16
 
 const (
 	ApiVersions APIKeys = 18
+	DescribeTopicPartitions APIKeys = 75
 )
 
 const (
@@ -77,17 +78,21 @@ func handleConnection(c net.Conn) {
 			os.Exit(1)
 		}
 
-		response := make([]byte, 19)
+		response := make([]byte, 26)
 		binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId)) // Correlation ID
 		binary.BigEndian.PutUint16(response[4:6], uint16(parsed_req.ErrorCode))    // Error Code
-		response[6] = 2                                                            // Number of API keys
+		response[6] = 3                                                            // Number of API keys
 		binary.BigEndian.PutUint16(response[7:9], uint16(parsed_req.ApiKey))       // API Key
 		binary.BigEndian.PutUint16(response[9:11], 0)                              // Min Version
 		binary.BigEndian.PutUint16(response[11:13], 4)                             // Max Version
 		response[13] = 0                                                           // Number of Tagged Fields
-		binary.BigEndian.PutUint32(response[14:18], 0)                             // Throttle Time
-		response[18] = 0                                                           // Number of Tagged Fields
-
+		binary.BigEndian.PutUint16(response[14:16], uint16(DescribeTopicPartitions)) // API Key
+		binary.BigEndian.PutUint16(response[16:18], 0)                              // Min Version
+		binary.BigEndian.PutUint16(response[18:20], 0)                                // Max Version
+		response[20] = 0                                                           // Number of Tagged Fields
+		binary.BigEndian.PutUint32(response[21:25], 0)                             // Throttle Time
+		response[25] = 0                                                           // tagged fields
+	
 		Send(c, response)
 	}
 }
