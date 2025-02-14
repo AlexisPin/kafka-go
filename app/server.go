@@ -22,7 +22,18 @@ func main() {
 	}
 
 	buff := make([]byte, 1024)
-	conn.Read(buff)
+	data_len, err := conn.Read(buff)
+	if err != nil {
+		fmt.Println("Error reading data: ", err.Error())
+		os.Exit(1)
+	}
+	if data_len == 0 {
+		fmt.Println("No data received")
+		os.Exit(1)
+	}
+	response := make([]byte, 8)
+	copy(response[:4], buff[:4])
+	copy(response[4:], buff[8:13])
 
-	conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
+	conn.Write(response)
 }
