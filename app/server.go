@@ -27,13 +27,21 @@ func main() {
 		fmt.Println("Error reading data: ", err.Error())
 		os.Exit(1)
 	}
+
 	if data_len == 0 {
 		fmt.Println("No data received")
 		os.Exit(1)
 	}
-	response := make([]byte, 8)
-	copy(response[:4], buff[:4])
-	copy(response[4:], buff[8:13])
+
+	var message_size = buff[0:4]
+	// var request_api_key = buff[4:6]
+	// var request_api_version = buff[6:8]
+	var correlation_id = buff[8:12]
+
+	response := make([]byte, 10)
+	copy(response[:4], message_size)
+	copy(response[4:8], correlation_id)
+	copy(response[8:], []byte{0, 35})
 
 	conn.Write(response)
 }
