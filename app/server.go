@@ -34,7 +34,6 @@ func Send(c net.Conn, b []byte) error {
 
 func Read(c net.Conn) (*Request, error) {
 	var MessageSize int32
-	var ApiKey APIKeys
 	var ApiVersion int16
 
 	req := Request{}
@@ -44,8 +43,8 @@ func Read(c net.Conn) (*Request, error) {
 	binary.Read(c, binary.BigEndian, &ApiVersion)
 	binary.Read(c, binary.BigEndian, &req.CorrelationId)
 
-	if ApiKey != ApiVersions {
-		return nil, fmt.Errorf("invalid API key")
+	if req.ApiKey != ApiVersions {
+		return nil, fmt.Errorf("invalid API key %d", req.ApiKey)
 	}
 
 	if ApiVersion < 0 || ApiVersion > 4 {
@@ -60,22 +59,11 @@ func Read(c net.Conn) (*Request, error) {
 	return &req, nil
 }
 
-func main() {
-	l, err := net.Listen("tcp", "0.0.0.0:9092")
-	if err != nil {
-		fmt.Println("Failed to bind to port 9092")
-		os.Exit(1)
-	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-
-	defer conn.Close()
+func handleConnection(c net.Conn) {
+	defer c.Close()
 
 	for {
-		parsed_req, err := Read(conn)
+		parsed_req, err := Read(c)
 		if err != nil {
 			fmt.Println("Error reading from connection: ", err.Error())
 			os.Exit(1)
@@ -85,7 +73,7 @@ func main() {
 			response := make([]byte, 6)
 			binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId))
 			binary.BigEndian.PutUint16(response[4:], uint16(parsed_req.ErrorCode))
-			Send(conn, response)
+			Send(c, response)
 			os.Exit(1)
 		}
 
@@ -100,6 +88,24 @@ func main() {
 		binary.BigEndian.PutUint32(response[14:18], 0)                             // Throttle Time
 		response[18] = 0                                                           // Number of Tagged Fields
 
-		Send(conn, response)
+		Send(c, response)
+	}
+}
+
+func main() {
+	l, err := net.Listen("tcp", "0.0.0.0:9092")
+	if err != nil {
+		fmt.Println("Failed to bind to port 9092")
+		os.Exit(1)
+	}
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		go handleConnection(conn)
 	}
 }
