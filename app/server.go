@@ -5,26 +5,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/request/api"
 )
-
-type APIKeys int16
-type ErrorCode int16
-
-const (
-	ApiVersions APIKeys = 18
-	DescribeTopicPartitions APIKeys = 75
-)
-
-const (
-	NONE                ErrorCode = 0
-	UNSUPPORTED_VERSION ErrorCode = 35
-)
-
-type Request struct {
-	CorrelationId int32
-	ErrorCode     ErrorCode
-	ApiKey        APIKeys
-}
 
 func Send(c net.Conn, b []byte) error {
 	binary.Write(c, binary.BigEndian, int32(len(b)))
@@ -33,66 +16,46 @@ func Send(c net.Conn, b []byte) error {
 	return nil
 }
 
-func Read(c net.Conn) (*Request, error) {
-	var MessageSize int32
-	var ApiVersion int16
-
-	req := Request{}
-
-	binary.Read(c, binary.BigEndian, &MessageSize)
-	binary.Read(c, binary.BigEndian, &req.ApiKey)
-	binary.Read(c, binary.BigEndian, &ApiVersion)
-	binary.Read(c, binary.BigEndian, &req.CorrelationId)
-
-	if req.ApiKey != ApiVersions {
-		return nil, fmt.Errorf("invalid API key %d", req.ApiKey)
-	}
-
-	if ApiVersion < 0 || ApiVersion > 4 {
-		req.ErrorCode = UNSUPPORTED_VERSION
-	} else {
-		req.ErrorCode = NONE
-	}
-
-	message := make([]byte, MessageSize-8)
-	c.Read(message)
-
-	return &req, nil
-}
-
 func handleConnection(c net.Conn) {
 	defer c.Close()
 
 	for {
-		parsed_req, err := Read(c)
+		var message_size uint32
+		err := binary.Read(c, binary.BigEndian, &message_size)
 		if err != nil {
 			fmt.Println("Error reading from connection: ", err.Error())
 			os.Exit(1)
 		}
 
-		if parsed_req.ErrorCode != 0 {
-			response := make([]byte, 6)
-			binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId))
-			binary.BigEndian.PutUint16(response[4:], uint16(parsed_req.ErrorCode))
-			Send(c, response)
-			os.Exit(1)
+		data := make([]byte, message_size)
+		_, err = c.Read(data)
+
+		reqHeader := &api.RequestHeader{}
+		reqHeader.Deserialize(data)
+
+		respHeader := api.ResponseHeader{}
+		respHeader.CorrelationId = reqHeader.CorrelationId
+		rspHeaderData, _ := respHeader.Serialize()
+
+		switch reqHeader.ApiKey {
+		case api.ApiVersions:
 		}
 
 		response := make([]byte, 26)
-		binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId)) // Correlation ID
-		binary.BigEndian.PutUint16(response[4:6], uint16(parsed_req.ErrorCode))    // Error Code
-		response[6] = 3                                                            // Number of API keys
-		binary.BigEndian.PutUint16(response[7:9], uint16(parsed_req.ApiKey))       // API Key
-		binary.BigEndian.PutUint16(response[9:11], 0)                              // Min Version
-		binary.BigEndian.PutUint16(response[11:13], 4)                             // Max Version
-		response[13] = 0                                                           // Number of Tagged Fields
+		binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId))   // Correlation ID
+		binary.BigEndian.PutUint16(response[4:6], uint16(parsed_req.ErrorCode))      // Error Code
+		response[6] = 3                                                              // Number of API keys
+		binary.BigEndian.PutUint16(response[7:9], uint16(parsed_req.ApiKey))         // API Key
+		binary.BigEndian.PutUint16(response[9:11], 0)                                // Min Version
+		binary.BigEndian.PutUint16(response[11:13], 4)                               // Max Version
+		response[13] = 0                                                             // Number of Tagged Fields
 		binary.BigEndian.PutUint16(response[14:16], uint16(DescribeTopicPartitions)) // API Key
-		binary.BigEndian.PutUint16(response[16:18], 0)                              // Min Version
-		binary.BigEndian.PutUint16(response[18:20], 0)                                // Max Version
-		response[20] = 0                                                           // Number of Tagged Fields
-		binary.BigEndian.PutUint32(response[21:25], 0)                             // Throttle Time
-		response[25] = 0                                                           // tagged fields
-	
+		binary.BigEndian.PutUint16(response[16:18], 0)                               // Min Version
+		binary.BigEndian.PutUint16(response[18:20], 0)                               // Max Version
+		response[20] = 0                                                             // Number of Tagged Fields
+		binary.BigEndian.PutUint32(response[21:25], 0)                               // Throttle Time
+		response[25] = 0                                                             // tagged fields
+
 		Send(c, response)
 	}
 }
