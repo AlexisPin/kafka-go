@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
@@ -106,6 +107,8 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byte) (*DescribeTopicPartitionsResponse, error) {
 	request := &DescribeTopicPartitionsRequest{}
 	request.Deserialize(data[req.Size:])
+
+	fmt.Printf("DescribeTopicPartitionsRequest: %+v\n", request)
 
 	response := &DescribeTopicPartitionsResponse{
 		ThrottleTime: 0,
