@@ -66,12 +66,14 @@ func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 	r.ResponsePartitionLimit = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
 	offset += 4
 	cursorLen := int16(binary.BigEndian.Uint16(c[offset : offset+2]))
+	offset += 2
 	if cursorLen > 0 {
-		offset += 2
 		r.Cursor.TopicName = string(c[offset : offset+int(cursorLen)])
 		offset += int(cursorLen)
-		r.Cursor.Partitionindex = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
-		offset += 4
+		} else {
+			r.Cursor.TopicName = ""
+			r.Cursor.Partitionindex = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
+			offset += 4
 	}
 
 	offset += 1 // tag buffer
