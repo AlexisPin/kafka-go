@@ -55,6 +55,7 @@ type Partition struct {
 func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 	offset := 0
 	arrayLength := int(c[offset]) - 1
+
 	offset += 1
 	for range arrayLength {
 		topicNameLength := int(c[offset]) - 1
@@ -97,7 +98,7 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 		res = append(res, 0) // Tagged Buffer
 	}
 	res = append(res, 0xff) // Next Cursor
-	res = append(res, 0)    // Tagged Buffer
+	res = append(res, 0x00) // Tagged Buffer
 	return res, nil
 }
 

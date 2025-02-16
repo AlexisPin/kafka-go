@@ -19,8 +19,8 @@ type ResponseHeader struct {
 }
 
 func (r *ResponseHeader) Serialize() ([]byte, error) {
-	res := make([]byte, 6)
-	binary.BigEndian.PutUint32(res[:4], uint32(r.CorrelationId))
+	res := make([]byte, 4)
+	binary.BigEndian.PutUint32(res, uint32(r.CorrelationId))
 
 	return res, nil
 }
