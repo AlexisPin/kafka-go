@@ -1,9 +1,13 @@
 package api
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/utils"
+)
 
 type ResponseBody struct {
-	ErrorCode ErrorCode
+	ErrorCode utils.ErrorCode
 }
 
 func (r *ResponseBody) Serialize() ([]byte, error) {

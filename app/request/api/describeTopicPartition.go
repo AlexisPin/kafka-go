@@ -2,11 +2,15 @@ package api
 
 import (
 	"encoding/binary"
+
+	"github.com/codecrafters-io/kafka-starter-go/app/request"
+	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
 
 type DescribeTopicPartitionsRequest struct {
 	TopicNames             []string
 	ResponsePartitionLimit int32
+	Cursor                 Cursor
 }
 
 type DescribeTopicPartitionsResponse struct {
@@ -20,7 +24,6 @@ type Cursor struct {
 	Partitionindex int32
 }
 
-// A 4-byte integer (bitfield) representing the authorized operations for this topic.
 type TopicAuthorizedOperations int32
 
 const (
@@ -35,7 +38,7 @@ const (
 )
 
 type Topic struct {
-	ErrorCode                 ErrorCode
+	ErrorCode                 utils.ErrorCode
 	TopicName                 string
 	TopicId                   string // A 16-byte UUID
 	IsInternal                bool
@@ -44,7 +47,7 @@ type Topic struct {
 }
 
 type Partition struct {
-	ErrorCode ErrorCode
+	ErrorCode utils.ErrorCode
 	Partition int32
 	Leader    int32
 }
@@ -68,7 +71,7 @@ func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 
 func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 	res := make([]byte, 0)
-	binary.BigEndian.AppendUint32(res, uint32(r.ThrottleTime))
+	res = binary.BigEndian.AppendUint32(res, uint32(r.ThrottleTime))
 	res = append(res, byte(len(r.Topics)+1))
 	for _, topic := range r.Topics {
 		res = binary.BigEndian.AppendUint16(res, uint16(topic.ErrorCode))
@@ -89,14 +92,18 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 	return res, nil
 }
 
-func HandleDescribeTopicPartitionsRequest(req *DescribeTopicPartitionsRequest) (*DescribeTopicPartitionsResponse, error) {
+func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byte) (*DescribeTopicPartitionsResponse, error) {
+	request := &DescribeTopicPartitionsRequest{}
+	request.Deserialize(data[req.Size:])
+
 	response := &DescribeTopicPartitionsResponse{
 		ThrottleTime: 0,
 		Topics:       []Topic{},
+		NextCursor:   Cursor{},
 	}
-	for _, topicName := range req.TopicNames {
+	for _, topicName := range request.TopicNames {
 		response.Topics = append(response.Topics, Topic{
-			ErrorCode: UNKNOWN_TOPIC_OR_PARTITION,
+			ErrorCode: utils.UNKNOWN_TOPIC_OR_PARTITION,
 			TopicName: topicName,
 			TopicId: string([]byte{
 				0x00, 0x00, 0x00, 0x00,

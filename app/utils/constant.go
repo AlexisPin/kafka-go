@@ -1,5 +1,4 @@
-package api	
-
+package utils
 
 type APIKeys int16
 type ErrorCode int16

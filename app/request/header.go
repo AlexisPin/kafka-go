@@ -1,18 +1,14 @@
 package request
 
 import (
-
 	"encoding/binary"
 
-	"fmt"
-
-	"github.com/codecrafters-io/kafka-starter-go/app/request/api"
-
+	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
 
 type RequestHeader struct {
-	Size   uint
-	ApiKey        api.APIKeys
+	Size          uint
+	ApiKey        utils.APIKeys
 	ApiVersion    int16
 	CorrelationId int32
 	ClientId      string
@@ -30,27 +26,15 @@ func (r *ResponseHeader) Serialize() ([]byte, error) {
 }
 
 func (r *RequestHeader) Deserialize(b []byte) error {
-	r.ApiKey = api.APIKeys(binary.BigEndian.Uint16(b[:2]))
+	r.ApiKey = utils.APIKeys(binary.BigEndian.Uint16(b[:2]))
 	r.ApiVersion = int16(binary.BigEndian.Uint16(b[2:4]))
 	r.CorrelationId = int32(binary.BigEndian.Uint32(b[4:8]))
 	clientIdLength := uint16(binary.BigEndian.Uint16(b[8:10]))
 	if clientIdLength > 0 {
 		r.ClientId = string(b[10 : 10+clientIdLength])
 	}
-	r.Size = uint(len(b))
+	size := 10 + clientIdLength
+	size += 1 // tag buffer
+	r.Size = uint(size)
 	return nil
-}
-
-func (r *RequestHeader) Check() error {
-	if r.ApiKey == api.ApiVersions {
-		if r.ApiVersion < 0 || r.ApiVersion >	4 {
-			return fmt.Errorf("unsupported version %d", r.ApiVersion)
-		} else {
-			return nil
-		}
-	}
-	if r.ApiKey == api.DescribeTopicPartitions {
-		return nil
-	}
-	return fmt.Errorf("unsupported API Key %d", r.ApiKey)
 }

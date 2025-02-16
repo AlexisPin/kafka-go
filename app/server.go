@@ -6,8 +6,26 @@ import (
 	"net"
 	"os"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/request/api"
+	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
+
+func Receive(c net.Conn) ([]byte, error) {
+	var message_size uint32
+	err := binary.Read(c, binary.BigEndian, &message_size)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, message_size)
+	_, err = c.Read(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
 
 func Send(c net.Conn, b []byte) error {
 	binary.Write(c, binary.BigEndian, int32(len(b)))
@@ -20,43 +38,39 @@ func handleConnection(c net.Conn) {
 	defer c.Close()
 
 	for {
-		var message_size uint32
-		err := binary.Read(c, binary.BigEndian, &message_size)
+		data, err := Receive(c)
 		if err != nil {
-			fmt.Println("Error reading from connection: ", err.Error())
+			fmt.Println("Error receiving data: ", err.Error())
 			os.Exit(1)
 		}
 
-		data := make([]byte, message_size)
-		_, err = c.Read(data)
-
-		reqHeader := &api.RequestHeader{}
+		reqHeader := &request.RequestHeader{}
 		reqHeader.Deserialize(data)
 
-		respHeader := api.ResponseHeader{}
-		respHeader.CorrelationId = reqHeader.CorrelationId
-		rspHeaderData, _ := respHeader.Serialize()
-
-		switch reqHeader.ApiKey {
-		case api.ApiVersions:
+		respHeader := &request.ResponseHeader{
+			CorrelationId: reqHeader.CorrelationId,
 		}
 
-		response := make([]byte, 26)
-		binary.BigEndian.PutUint32(response[:4], uint32(parsed_req.CorrelationId))   // Correlation ID
-		binary.BigEndian.PutUint16(response[4:6], uint16(parsed_req.ErrorCode))      // Error Code
-		response[6] = 3                                                              // Number of API keys
-		binary.BigEndian.PutUint16(response[7:9], uint16(parsed_req.ApiKey))         // API Key
-		binary.BigEndian.PutUint16(response[9:11], 0)                                // Min Version
-		binary.BigEndian.PutUint16(response[11:13], 4)                               // Max Version
-		response[13] = 0                                                             // Number of Tagged Fields
-		binary.BigEndian.PutUint16(response[14:16], uint16(DescribeTopicPartitions)) // API Key
-		binary.BigEndian.PutUint16(response[16:18], 0)                               // Min Version
-		binary.BigEndian.PutUint16(response[18:20], 0)                               // Max Version
-		response[20] = 0                                                             // Number of Tagged Fields
-		binary.BigEndian.PutUint32(response[21:25], 0)                               // Throttle Time
-		response[25] = 0                                                             // tagged fields
+		respHeaderData, _ := respHeader.Serialize()
 
-		Send(c, response)
+		switch reqHeader.ApiKey {
+		case utils.ApiVersions:
+			respBody, err := api.HandleApiVersionsRequest(reqHeader)
+			if err != nil {
+				fmt.Println("Error handling ApiVersions request: ", err.Error())
+			}
+			respBodyData, _ := respBody.Serialize()
+			Send(c, append(respHeaderData, respBodyData...))
+
+		case utils.DescribeTopicPartitions:
+			respBody, err := api.HandleDescribeTopicPartitionsRequest(reqHeader, data)
+			if err != nil {
+				fmt.Println("Error handling DescribeTopicPartitions request: ", err.Error())
+				os.Exit(1)
+			}
+			respBodyData, _ := respBody.Serialize()
+			Send(c, append(respHeaderData, respBodyData...))
+		}
 	}
 }
 
