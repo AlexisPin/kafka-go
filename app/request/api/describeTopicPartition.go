@@ -99,7 +99,10 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 	response := &DescribeTopicPartitionsResponse{
 		ThrottleTime: 0,
 		Topics:       []Topic{},
-		NextCursor:   Cursor{},
+		NextCursor:   Cursor{
+			TopicName:      request.Cursor.TopicName,
+			Partitionindex: request.Cursor.Partitionindex,
+		},
 	}
 	for _, topicName := range request.TopicNames {
 		response.Topics = append(response.Topics, Topic{
