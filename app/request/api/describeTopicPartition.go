@@ -81,6 +81,7 @@ func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 
 func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 	res := make([]byte, 0)
+	res = append(res, 0) // Tag Buffer Response Header v1
 	res = binary.BigEndian.AppendUint32(res, uint32(r.ThrottleTime))
 	res = append(res, byte(len(r.Topics)+1))
 	for _, topic := range r.Topics {
