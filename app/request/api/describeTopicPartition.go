@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/binary"
-	"fmt"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
@@ -66,15 +65,13 @@ func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 	offset += 1 // tag buffer
 	r.ResponsePartitionLimit = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
 	offset += 4
-	cursorLen := int16(binary.BigEndian.Uint16(c[offset : offset+2]))
-	offset += 2
-	if cursorLen > 0 {
-		r.Cursor.TopicName = string(c[offset : offset+int(cursorLen)])
-		offset += int(cursorLen)
-		} else {
-			r.Cursor.TopicName = ""
-			r.Cursor.Partitionindex = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
-			offset += 4
+	len := int16(binary.BigEndian.Uint16(c[offset : offset+2]))
+	if len > 0 {
+		offset += 2
+		r.Cursor.TopicName = string(c[offset : offset+int(len)])
+		offset += int(len)
+		r.Cursor.Partitionindex = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
+		offset += 4
 	}
 
 	offset += 1 // tag buffer
@@ -97,7 +94,7 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 		}
 		res = append(res, 1) // Empty Partitions Array
 		res = binary.BigEndian.AppendUint32(res, uint32(topic.TopicAuthorizedOperations))
-		res = append(res, 1) // Tagged Buffer
+		res = append(res, 0) // Tagged Buffer
 	}
 	res = append(res, 0xff) // Next Cursor
 	res = append(res, 0)    // Tagged Buffer
@@ -107,8 +104,6 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byte) (*DescribeTopicPartitionsResponse, error) {
 	request := &DescribeTopicPartitionsRequest{}
 	request.Deserialize(data[req.Size:])
-
-	fmt.Printf("DescribeTopicPartitionsRequest: %+v\n", request)
 
 	response := &DescribeTopicPartitionsResponse{
 		ThrottleTime: 0,
