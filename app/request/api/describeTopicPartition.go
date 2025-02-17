@@ -125,31 +125,32 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 		// ProducerID: (8 bytes)
 		// ProducerEpoch: (2 bytes)
 		// BaseSequence: (4 bytes)
-		fmt.Printf("Buffer Length: %d\n", buffer.Len())
-		_ = buffer.Next(8 + 4 + 4 + 1 + 4 + 2 + 4 + 8 + 8 + 8 + 2 + 4)
+		buffer.Next(8 + 4 + 4 + 1 + 4 + 2 + 4 + 8 + 8 + 8 + 2 + 4)
 		if buffer.Len() == 0 {
 			break
 		}
 
 		recordsLength := int32(binary.BigEndian.Uint32(buffer.Next(4)))
-		fmt.Printf("Records Length: %d\n", recordsLength)
 		for range recordsLength {
 			length, _ := binary.ReadVarint(buffer)
+			fmt.Printf("Length: %d\n", length)
 			recordBuffer := bytes.NewBuffer(buffer.Next(int(length)))
 			recordBuffer.Next(1)            // Attributes
 			binary.ReadVarint(recordBuffer) // Timestamp Delta
 			binary.ReadVarint(recordBuffer) // Offset Delta
 			keyLength, _ := binary.ReadVarint(recordBuffer)
+			fmt.Printf("Key Length: %d\n", keyLength)
 			if keyLength > 0 {
 				recordBuffer.Next(int(keyLength))
 			}
 			valueLength, _ := binary.ReadVarint(recordBuffer)
+			fmt.Printf("Value Length: %d\n", valueLength)
 			valueBuffer := bytes.NewBuffer(recordBuffer.Next(int(valueLength)))
 			_ = valueBuffer.Next(1) // Frame Version
 			var recordType MetatdataRecordType
 			binary.Read(valueBuffer, binary.BigEndian, &recordType)
 			valueBuffer.Next(1) // Version
-
+			fmt.Printf("Record Type: %d\n", recordType)
 			switch recordType {
 			case TopicRecordType:
 				nameLength, _ := binary.ReadUvarint(valueBuffer)
