@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/binary"
-	"os"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
@@ -24,6 +23,16 @@ type DescribeTopicPartitionsResponse struct {
 type Cursor struct {
 	TopicName      string
 	Partitionindex int32
+}
+
+func (r *Cursor) Serialize() ([]byte, error) {
+	b := new(bytes.Buffer)
+	topic := []byte(r.TopicName)
+	binary.Write(b, binary.BigEndian, int8(len(topic)+1))
+	b.Write(topic)
+	binary.Write(b, binary.BigEndian, r.Partitionindex)
+	binary.Write(b, binary.BigEndian, int8(0)) // Tag Buffer
+	return b.Bytes(), nil
 }
 
 type TopicAuthorizedOperations int32
@@ -55,6 +64,32 @@ type Topic struct {
 	TopicAuthorizedOperations TopicAuthorizedOperations
 }
 
+func (t *Topic) Serialize() ([]byte, error) {
+	b := new(bytes.Buffer)
+	binary.Write(b, binary.BigEndian, t.ErrorCode)
+	if t.TopicName != "" {
+		name := []byte(t.TopicName)
+		binary.Write(b, binary.BigEndian, int8(len(name)+1))
+		b.Write(name)
+	} else {
+		binary.Write(b, binary.BigEndian, int8(0))
+	}
+	binary.Write(b, binary.BigEndian, []byte(t.TopicId))
+	if t.IsInternal {
+		binary.Write(b, binary.BigEndian, int8(1))
+	} else {
+		binary.Write(b, binary.BigEndian, int8(0))
+	}
+	binary.Write(b, binary.BigEndian, int8(len(t.Partitions)+1))
+	for _, partition := range t.Partitions {
+		partitionBytes, _ := partition.Serialize()
+		b.Write(partitionBytes)
+	}
+	binary.Write(b, binary.BigEndian, int32(t.TopicAuthorizedOperations))
+	binary.Write(b, binary.BigEndian, int8(0)) // Tag Buffer
+	return b.Bytes(), nil
+}
+
 type Partition struct {
 	ErrorCode                             utils.ErrorCode
 	PartitionIndex                        int32
@@ -68,12 +103,12 @@ type Partition struct {
 	TaggedBuffer                          []byte
 }
 
-func ParseMetadataLogFile(path string) (map[string]Topic, error) {
-	data, err := os.ReadFile(path)
+func ParseMetadataLogFile() (map[string]Topic, error) {
+	buffer, err := utils.ReadFile("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")
 	if err != nil {
 		return nil, err
 	}
-	buffer := bytes.NewBuffer(data)
+
 	topics := map[string]*Topic{}
 
 	for {
@@ -126,7 +161,12 @@ func ParseMetadataLogFile(path string) (map[string]Topic, error) {
 				topics[topic.TopicId] = topic
 
 			case PartitionRecordType:
-				partition := Partition{}
+				partition := Partition{
+					ErrorCode:                             utils.NONE,
+					EligibleLeaderReplicaNodeIds:          []int32{},
+					LastKnownEligibleLeaderReplicaNodeIds: []int32{},
+					OfflineReplicaNodeIds:                 []int32{},
+				}
 				binary.Read(valueBuffer, binary.BigEndian, &partition.PartitionIndex)
 				topicId := make([]byte, 16)
 				binary.Read(valueBuffer, binary.BigEndian, &topicId)
@@ -187,55 +227,59 @@ func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
 	return nil
 }
 
-func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
-	res := make([]byte, 0)
-	res = append(res, 0) // Tag Buffer Response Header v1
-	res = binary.BigEndian.AppendUint32(res, uint32(r.ThrottleTime))
-	res = append(res, byte(len(r.Topics)+1))
-	for _, topic := range r.Topics {
-		res = binary.BigEndian.AppendUint16(res, uint16(topic.ErrorCode))
-		res = append(res, byte(len(topic.TopicName)+1))
-		res = append(res, []byte(topic.TopicName)...)
-		res = append(res, []byte(topic.TopicId)...)
-		if topic.IsInternal {
-			res = append(res, 1)
-		} else {
-			res = append(res, 0)
-		}
-		res = append(res, byte(len(topic.Partitions)+1))
-		for _, partition := range topic.Partitions {
-			res = binary.BigEndian.AppendUint16(res, uint16(partition.ErrorCode))
-			res = binary.BigEndian.AppendUint32(res, uint32(partition.PartitionIndex))
-			res = binary.BigEndian.AppendUint32(res, uint32(partition.LeaderId))
-			res = binary.BigEndian.AppendUint32(res, uint32(partition.LeaderEpoch))
-			res = append(res, byte(len(partition.ReplicaNodeIds)+1))
-			for _, replicaNodeId := range partition.ReplicaNodeIds {
-				res = binary.BigEndian.AppendUint32(res, uint32(replicaNodeId))
-			}
-			res = append(res, byte(len(partition.IsrNodeIds)+1))
-			for _, isrNodeId := range partition.IsrNodeIds {
-				res = binary.BigEndian.AppendUint32(res, uint32(isrNodeId))
-			}
-			res = append(res, byte(len(partition.EligibleLeaderReplicaNodeIds)+1))
-			for _, eligibleLeaderReplicaNodeId := range partition.EligibleLeaderReplicaNodeIds {
-				res = binary.BigEndian.AppendUint32(res, uint32(eligibleLeaderReplicaNodeId))
-			}
-			res = append(res, byte(len(partition.LastKnownEligibleLeaderReplicaNodeIds)+1))
-			for _, lastKnownEligibleLeaderReplicaNodeId := range partition.LastKnownEligibleLeaderReplicaNodeIds {
-				res = binary.BigEndian.AppendUint32(res, uint32(lastKnownEligibleLeaderReplicaNodeId))
-			}
-			res = append(res, byte(len(partition.OfflineReplicaNodeIds)+1))
-			for _, offlineReplicaNodeId := range partition.OfflineReplicaNodeIds {
-				res = binary.BigEndian.AppendUint32(res, uint32(offlineReplicaNodeId))
-			}
-			res = append(res, 0) // Tagged Buffer
-		}
-		res = binary.BigEndian.AppendUint32(res, uint32(topic.TopicAuthorizedOperations))
-		res = append(res, 0) // Tagged Buffer
+func (r *Partition) Serialize() ([]byte, error) {
+	b := new(bytes.Buffer)
+	binary.Write(b, binary.BigEndian, r.ErrorCode)
+	binary.Write(b, binary.BigEndian, r.PartitionIndex)
+	binary.Write(b, binary.BigEndian, r.LeaderId)
+	binary.Write(b, binary.BigEndian, r.LeaderEpoch)
+
+	// Replica Nodes
+	binary.Write(b, binary.BigEndian, int8(len(r.ReplicaNodeIds)+1))
+	for _, replicaNodeId := range r.ReplicaNodeIds {
+		binary.Write(b, binary.BigEndian, replicaNodeId)
 	}
-	res = append(res, 0xff) // Next Cursor
-	res = append(res, 0x00) // Tagged Buffer
-	return res, nil
+
+	// ISR Nodes
+	binary.Write(b, binary.BigEndian, int8(len(r.IsrNodeIds)+1))
+	for _, isrNodeId := range r.IsrNodeIds {
+		binary.Write(b, binary.BigEndian, isrNodeId)
+	}
+
+	// Eligible Leader Replicas
+	binary.Write(b, binary.BigEndian, int8(len(r.EligibleLeaderReplicaNodeIds)+1))
+	for _, eligibleLeaderReplicaNodeId := range r.EligibleLeaderReplicaNodeIds {
+		binary.Write(b, binary.BigEndian, eligibleLeaderReplicaNodeId)
+	}
+
+	// Last Known ELR
+	binary.Write(b, binary.BigEndian, int8(len(r.LastKnownEligibleLeaderReplicaNodeIds)+1))
+	for _, lk := range r.LastKnownEligibleLeaderReplicaNodeIds {
+		binary.Write(b, binary.BigEndian, lk)
+	}
+
+	//  Offline Replicas
+	binary.Write(b, binary.BigEndian, int8(len(r.OfflineReplicaNodeIds)+1))
+	for _, offlineReplicaNodeId := range r.OfflineReplicaNodeIds {
+		binary.Write(b, binary.BigEndian, offlineReplicaNodeId)
+	}
+
+	binary.Write(b, binary.BigEndian, int8(0)) // Tag Buffer
+	return b.Bytes(), nil
+}
+
+func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
+	b := new(bytes.Buffer)
+	b.Write([]byte{0})
+	binary.Write(b, binary.BigEndian, r.ThrottleTime)
+	binary.Write(b, binary.BigEndian, int8(len(r.Topics)+1))
+	for _, topic := range r.Topics {
+		topicBytes, _ := topic.Serialize()
+		b.Write(topicBytes)
+	}
+	b.Write([]byte{0xff})                      // Next Cursor
+	binary.Write(b, binary.BigEndian, int8(0)) // Tag Buffer
+	return b.Bytes(), nil
 }
 
 func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byte) (*DescribeTopicPartitionsResponse, error) {
@@ -250,7 +294,7 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 			Partitionindex: request.Cursor.Partitionindex,
 		},
 	}
-	topics, err := ParseMetadataLogFile("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")
+	topics, err := ParseMetadataLogFile()
 	if err != nil {
 		return nil, err
 	}
