@@ -133,24 +133,23 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 		recordsLength := int32(binary.BigEndian.Uint32(buffer.Next(4)))
 		for range recordsLength {
 			length, _ := binary.ReadVarint(buffer)
-			fmt.Printf("Length: %d\n", length)
+
 			recordBuffer := bytes.NewBuffer(buffer.Next(int(length)))
 			recordBuffer.Next(1)            // Attributes
 			binary.ReadVarint(recordBuffer) // Timestamp Delta
 			binary.ReadVarint(recordBuffer) // Offset Delta
 			keyLength, _ := binary.ReadVarint(recordBuffer)
-			fmt.Printf("Key Length: %d\n", keyLength)
+
 			if keyLength > 0 {
 				recordBuffer.Next(int(keyLength))
 			}
 			valueLength, _ := binary.ReadVarint(recordBuffer)
-			fmt.Printf("Value Length: %d\n", valueLength)
 			valueBuffer := bytes.NewBuffer(recordBuffer.Next(int(valueLength)))
 			_ = valueBuffer.Next(1) // Frame Version
 			var recordType MetatdataRecordType
 			binary.Read(valueBuffer, binary.BigEndian, &recordType)
 			valueBuffer.Next(1) // Version
-			fmt.Printf("Record Type: %d\n", recordType)
+
 			switch recordType {
 			case TopicRecordType:
 				nameLength, _ := binary.ReadUvarint(valueBuffer)
@@ -162,6 +161,9 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 					TopicName: string(topicName),
 					TopicId:   string(topicId),
 				}
+				
+				fmt.Printf("Topic: %+v\n", topic)
+
 				topics[topic.TopicId] = topic
 
 			case PartitionRecordType:
@@ -192,10 +194,13 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 				binary.Read(valueBuffer, binary.BigEndian, &partition.LeaderId)
 				binary.Read(valueBuffer, binary.BigEndian, &partition.LeaderEpoch)
 
+				fmt.Printf("Partition: %+v\n", partition)
+
 				topics[string(topicId)].Partitions = append(topics[string(topicId)].Partitions, partition)
 			}
 		}
 	}
+	fmt.Printf("Topics: %+v\n", topics)
 	topicsList := make(map[string]Topic, len(topics))
 	for _, topic := range topics {
 		topicsList[topic.TopicName] = *topic
