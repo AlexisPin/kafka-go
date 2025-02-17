@@ -153,7 +153,7 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 			switch recordType {
 			case TopicRecordType:
 				nameLength, _ := binary.ReadUvarint(valueBuffer)
-				topicName, topicId := make([]byte, nameLength), make([]byte, 16)
+				topicName, topicId := make([]byte, nameLength-1), make([]byte, 16)
 				binary.Read(valueBuffer, binary.BigEndian, &topicName)
 				binary.Read(valueBuffer, binary.BigEndian, &topicId)
 
@@ -161,8 +161,8 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 					TopicName: string(topicName),
 					TopicId:   string(topicId),
 				}
-				
-				fmt.Printf("Topic: %+v\n", topic)
+
+				fmt.Printf("Topic: %+v\n", *topic)
 
 				topics[topic.TopicId] = topic
 
