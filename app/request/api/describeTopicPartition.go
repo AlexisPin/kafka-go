@@ -109,7 +109,6 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 	fmt.Printf("Buffer: %s\n", buffer)
 	if err != nil {
 		fmt.Printf("Error reading metadata log file: %s\n", err.Error())
-		return nil, err
 	}
 
 	topics := map[string]*Topic{}
