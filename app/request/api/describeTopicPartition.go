@@ -125,12 +125,14 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 		// ProducerID: (8 bytes)
 		// ProducerEpoch: (2 bytes)
 		// BaseSequence: (4 bytes)
+		fmt.Printf("Buffer Length: %d\n", buffer.Len())
 		_ = buffer.Next(8 + 4 + 4 + 1 + 4 + 2 + 4 + 8 + 8 + 8 + 2 + 4)
 		if buffer.Len() == 0 {
 			break
 		}
 
 		recordsLength := int32(binary.BigEndian.Uint32(buffer.Next(4)))
+		fmt.Printf("Records Length: %d\n", recordsLength)
 		for range recordsLength {
 			length, _ := binary.ReadVarint(buffer)
 			recordBuffer := bytes.NewBuffer(buffer.Next(int(length)))
