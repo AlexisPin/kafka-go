@@ -312,16 +312,18 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 		curTopic, ok := topics[topicName]
 		errorCode := utils.UNKNOWN_TOPIC_OR_PARTITION
 		partition := []Partition{}
+		topicId := string([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 
 		if ok {
 			partition = curTopic.Partitions
 			errorCode = utils.NONE
+			topicId = curTopic.TopicId
 		}
 
 		response.Topics = append(response.Topics, Topic{
 			ErrorCode:                 errorCode,
 			TopicName:                 topicName,
-			TopicId:                   curTopic.TopicId,
+			TopicId:                   topicId,
 			IsInternal:                false,
 			Partitions:                partition,
 			TopicAuthorizedOperations: READ | WRITE | CREATE | DELETE | ALTER | DESCRIBE | DESCRIBE_CONFIGS | ALTER_CONFIGS,
