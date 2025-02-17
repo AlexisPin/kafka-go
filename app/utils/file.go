@@ -14,7 +14,7 @@ func ReadFile(path string) (*bytes.Buffer, error) {
 		fmt.Printf("Error opening file %s: %s\n", path, err)
 		return new(bytes.Buffer), fmt.Errorf("unable to open file %s: %w", path, err)
 	}
-	defer fileHandle.Close()
+	// defer fileHandle.Close()
 
 	b := new(bytes.Buffer)
 	_, err = io.Copy(b, fileHandle)

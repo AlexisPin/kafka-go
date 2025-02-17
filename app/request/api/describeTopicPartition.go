@@ -106,7 +106,6 @@ type Partition struct {
 
 func ParseMetadataLogFile() (map[string]Topic, error) {
 	buffer, err := utils.ReadFile("/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log")
-	fmt.Printf("Buffer: %s\n", buffer)
 	if err != nil {
 		fmt.Printf("Error reading metadata log file: %s\n", err.Error())
 	}
