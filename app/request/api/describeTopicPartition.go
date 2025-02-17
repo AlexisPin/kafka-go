@@ -295,22 +295,22 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 			Partitionindex: request.Cursor.Partitionindex,
 		},
 	}
-	topics, err := ParseMetadataLogFile()
-	if err != nil {
-		return nil, err
-	}
+	// topics, err := ParseMetadataLogFile()
+	// if err != nil {
+	// 	return nil, err
+	// }
 	fmt.Printf("Request: %+v\n", request)
 	for _, topicName := range request.TopicNames {
-		curTopic, ok := topics[topicName]
-		if !ok {
-			continue
-		}
+		// curTopic, ok := topics[topicName]
+		// if !ok {
+		// 	continue
+		// }
 		response.Topics = append(response.Topics, Topic{
 			ErrorCode:                 utils.NONE,
-			TopicName:                 curTopic.TopicName,
-			TopicId:                   curTopic.TopicId,
+			TopicName:                 topicName,
+			TopicId:                   "865b642e-3243-4b8e-b306-15392f5104f3",
 			IsInternal:                false,
-			Partitions:                curTopic.Partitions,
+			Partitions:                []Partition{},
 			TopicAuthorizedOperations: READ | WRITE | CREATE | DELETE | ALTER | DESCRIBE | DESCRIBE_CONFIGS | ALTER_CONFIGS,
 		})
 	}
