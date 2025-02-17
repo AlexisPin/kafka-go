@@ -8,6 +8,7 @@ import (
 )
 
 func ReadFile(path string) (*bytes.Buffer, error) {
+	fmt.Println("Reading file", path)
 	fileHandle, err := os.Open(path)
 	if err != nil {
 		return new(bytes.Buffer), fmt.Errorf("unable to open file %s: %w", path, err)
