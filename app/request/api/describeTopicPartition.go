@@ -310,16 +310,20 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 	fmt.Printf("Request: %+v\n", request)
 	for _, topicName := range request.TopicNames {
 		curTopic, ok := topics[topicName]
-		if !ok {
-			fmt.Printf("Topic %s not found\n", topicName)
-			continue
+		errorCode := utils.UNKNOWN_TOPIC_OR_PARTITION
+		partition := []Partition{}
+
+		if ok {
+			partition = curTopic.Partitions
+			errorCode = utils.NONE
 		}
+
 		response.Topics = append(response.Topics, Topic{
-			ErrorCode:                 utils.NONE,
-			TopicName:                 curTopic.TopicName,
+			ErrorCode:                 errorCode,
+			TopicName:                 topicName,
 			TopicId:                   curTopic.TopicId,
 			IsInternal:                false,
-			Partitions:                curTopic.Partitions,
+			Partitions:                partition,
 			TopicAuthorizedOperations: READ | WRITE | CREATE | DELETE | ALTER | DESCRIBE | DESCRIBE_CONFIGS | ALTER_CONFIGS,
 		})
 	}
