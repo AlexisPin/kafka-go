@@ -40,7 +40,7 @@ func handleConnection(c net.Conn) {
 	for {
 		data, err := Receive(c)
 		if err != nil {
-			fmt.Printf("Error receiving data: ", err.Error())
+			fmt.Printf("Error receiving data: %s\n", err.Error())
 			os.Exit(1)
 		}
 
