@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 func ReadFile(path string) (*bytes.Buffer, error) {
 	fmt.Println("Reading file", path)
+	time.Sleep(1 * time.Second)
 	fileHandle, err := os.Open(path)
 	if err != nil {
+		fmt.Printf("unable to open file %s: %s\n", path, err.Error())
 		return new(bytes.Buffer), fmt.Errorf("unable to open file %s: %w", path, err)
 	}
 	defer fileHandle.Close()
