@@ -40,7 +40,7 @@ func handleConnection(c net.Conn) {
 	for {
 		data, err := Receive(c)
 		if err != nil {
-			fmt.Println("Error receiving data: ", err.Error())
+			fmt.Printf("Error receiving data: ", err.Error())
 			os.Exit(1)
 		}
 
@@ -57,7 +57,7 @@ func handleConnection(c net.Conn) {
 		case utils.ApiVersions:
 			respBody, err := api.HandleApiVersionsRequest(reqHeader)
 			if err != nil {
-				fmt.Println("Error handling ApiVersions request: ", err.Error())
+				fmt.Printf("Error handling ApiVersions request: %s\n", err.Error())
 			}
 			respBodyData, _ := respBody.Serialize()
 			Send(c, append(respHeaderData, respBodyData...))
@@ -65,7 +65,7 @@ func handleConnection(c net.Conn) {
 		case utils.DescribeTopicPartitions:
 			respBody, err := api.HandleDescribeTopicPartitionsRequest(reqHeader, data)
 			if err != nil {
-				fmt.Println("Error handling DescribeTopicPartitions request: ", err.Error())
+				fmt.Printf("Error handling DescribeTopicPartitions request: %s\n", err.Error())
 				os.Exit(1)
 			}
 			respBodyData, _ := respBody.Serialize()

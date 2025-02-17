@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
@@ -298,6 +299,7 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("Request: %+v\n", request)
 	for _, topicName := range request.TopicNames {
 		curTopic, ok := topics[topicName]
 		if !ok {
