@@ -35,6 +35,13 @@ func (p *BytesParser) ReadInt32() int32 {
 	return n
 }
 
+func (p *BytesParser) ReadInt64() int64 {
+	var n int64
+	binary.Read(bytes.NewReader(p.data[p.offset:p.offset+8]), binary.BigEndian, &n)
+	p.offset += 8
+	return n
+}
+
 func (p *BytesParser) ReadCompactString() string {
 	len := int(p.ReadInt8() - 1)
 	if len <= 0 {
@@ -53,4 +60,11 @@ func (p *BytesParser) ReadNullableString() string {
 	value := string(p.data[p.offset : p.offset+length])
 	p.offset += length
 	return value
+}
+
+func (p *BytesParser) ReadUUID() []byte {
+	uuid := make([]byte, 16)
+	copy(uuid, p.data[p.offset:p.offset+16])
+	p.offset += 16
+	return uuid
 }

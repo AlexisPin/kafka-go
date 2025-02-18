@@ -54,6 +54,7 @@ func handleConnection(c net.Conn) {
 		}
 
 		respHeaderData, _ := respHeader.Serialize()
+		var respBodyData []byte
 
 		switch reqHeader.ApiKey {
 		case utils.ApiVersions:
@@ -61,8 +62,7 @@ func handleConnection(c net.Conn) {
 			if err != nil {
 				fmt.Printf("Error handling ApiVersions request: %s\n", err.Error())
 			}
-			respBodyData, _ := respBody.Serialize()
-			Send(c, append(respHeaderData, respBodyData...))
+			respBodyData, _ = respBody.Serialize()
 
 		case utils.DescribeTopicPartitions:
 			respBody, err := api.HandleDescribeTopicPartitionsRequest(reqHeader, parser)
@@ -70,9 +70,17 @@ func handleConnection(c net.Conn) {
 				fmt.Printf("Error handling DescribeTopicPartitions request: %s\n", err.Error())
 				os.Exit(1)
 			}
-			respBodyData, _ := respBody.Serialize()
-			Send(c, append(respHeaderData, respBodyData...))
+			respBodyData, _ = respBody.Serialize()
+		
+		case utils.Fetch:
+			respBody, err := api.HandleFetchRequest(reqHeader, parser)
+			if err != nil {
+				fmt.Printf("Error handling Fetch request: %s\n", err.Error())
+				os.Exit(1)
+			}
+			respBodyData, _ = respBody.Serialize()
 		}
+		Send(c, append(respHeaderData, respBodyData...))
 	}
 }
 
