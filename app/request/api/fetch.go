@@ -19,6 +19,7 @@ type FetchRequest struct {
 	SessionEpoch        int32
 	Topics              []FetchTopic
 	ForgottenTopicsData []ForgottenTopicData
+	RackId              string
 }
 
 type FetchTopic struct {
@@ -72,7 +73,7 @@ func (r *FetchPartition) Deserialize(p *decoder.BytesParser) error {
 
 func (r *FetchTopic) Deserialize(p *decoder.BytesParser) error {
 	r.TopicId = string(p.ReadUUID())
-	r.Partitions = make([]FetchPartition, p.ReadInt32()-1)
+	r.Partitions = make([]FetchPartition, p.ReadInt8()-1)
 	for range r.Partitions {
 		parts := FetchPartition{}
 		parts.Deserialize(p)
@@ -89,26 +90,30 @@ func (r *FetchRequest) Deserialize(p *decoder.BytesParser) error {
 	r.IsolationLevel = p.ReadInt8()
 	r.SessionId = p.ReadInt32()
 	r.SessionEpoch = p.ReadInt32()
-	r.Topics = make([]FetchTopic, p.ReadInt32()-1)
+	r.Topics = make([]FetchTopic, p.ReadInt8()-1)
+
 	for range r.Topics {
 		topic := FetchTopic{}
 		topic.Deserialize(p)
 		r.Topics = append(r.Topics, topic)
 	}
-	r.ForgottenTopicsData = make([]ForgottenTopicData, p.ReadInt32()-1)
+	r.ForgottenTopicsData = make([]ForgottenTopicData, p.ReadInt8()-1)
 	for i := range r.ForgottenTopicsData {
 		r.ForgottenTopicsData[i].TopicId = string(p.ReadUUID())
-		r.ForgottenTopicsData[i].Partitions = make([]int32, p.ReadInt32()-1)
+		r.ForgottenTopicsData[i].Partitions = make([]int32, p.ReadInt8())
 		for j := range r.ForgottenTopicsData[i].Partitions {
 			r.ForgottenTopicsData[i].Partitions[j] = p.ReadInt32()
 		}
 		p.ReadInt8() // Tag Buffer
 	}
+	r.RackId = p.ReadCompactString()
+	p.ReadInt8() // Tag Buffer
 	return nil
 }
 
 func (r *FetchResponse) Serialize() ([]byte, error) {
 	b := new(bytes.Buffer)
+	b.Write([]byte{0}) // Tag Buffer
 	binary.Write(b, binary.BigEndian, r.ThrottleTimeMs)
 	binary.Write(b, binary.BigEndian, r.ErrorCode)
 	binary.Write(b, binary.BigEndian, r.SessionId)
@@ -126,7 +131,7 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].LastStableOffset)
 		}
 	}
-	binary.Write(b, binary.BigEndian, int8(0)) // Tag Buffer
+	b.Write([]byte{0}) // Tag Buffer
 	return b.Bytes(), nil
 }
 
@@ -155,8 +160,6 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 			}
 		}
 	}
-
-	fmt.Printf("Sending Fetch response: %+v\n", resp)
 
 	return resp, nil
 }
