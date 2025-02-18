@@ -50,7 +50,7 @@ type FetchResponse struct {
 
 type FetchResponseTopic struct {
 	TopicId            string
-	PartitionResponses []FetchPartitionResponse
+	Partitions []FetchPartitionResponse
 }
 
 type FetchPartitionResponse struct {
@@ -132,10 +132,10 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 	binary.Write(b, binary.BigEndian, int8(len(r.Responses)+1))
 	for _, response := range r.Responses {
 		binary.Write(b, binary.BigEndian, []byte(response.TopicId))
-		binary.Write(b, binary.BigEndian, int8(len(response.PartitionResponses)+1))
+		binary.Write(b, binary.BigEndian, int8(len(response.Partitions)+1))
 
 		// Partitions
-		for _, partition := range response.PartitionResponses {
+		for _, partition := range response.Partitions {
 			binary.Write(b, binary.BigEndian, partition.PartitionIndex)
 			binary.Write(b, binary.BigEndian, partition.ErrorCode)
 			binary.Write(b, binary.BigEndian, partition.HighWatermark)
@@ -172,10 +172,10 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 
 	for i := range req.Topics {
 		resp.Responses[i].TopicId = req.Topics[i].TopicId
-		resp.Responses[i].PartitionResponses = make([]FetchPartitionResponse, len(req.Topics[i].Partitions))
-		for j := range req.Topics[i].Partitions {
-			resp.Responses[i].PartitionResponses[j] = FetchPartitionResponse{
-				PartitionIndex:       req.Topics[i].Partitions[j].PartitionId,
+		resp.Responses[i].Partitions = make([]FetchPartitionResponse, len(req.Topics[i].Partitions))
+		for j, partition := range req.Topics[i].Partitions {
+			resp.Responses[i].Partitions[j] = FetchPartitionResponse{
+				PartitionIndex:       partition.PartitionId,
 				ErrorCode:            utils.UNKNOWN_TOPIC_ID,
 				HighWatermark:        0,
 				LastStableOffset:     0,
