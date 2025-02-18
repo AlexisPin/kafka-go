@@ -58,7 +58,17 @@ type FetchPartitionResponse struct {
 	ErrorCode        utils.ErrorCode
 	HighWatermark    int64
 	LastStableOffset int64
+	LogStartOffset	 int64
+	AbortedTransactions []AbortedTransaction
+	PreferredReadReplica int32
 }
+
+type AbortedTransaction struct {
+	ProducerId int64
+	FirstOffset int64
+}
+
+
 
 func (r *FetchPartition) Deserialize(p *decoder.BytesParser) error {
 	r.PartitionId = p.ReadInt32()
@@ -74,10 +84,10 @@ func (r *FetchPartition) Deserialize(p *decoder.BytesParser) error {
 func (r *FetchTopic) Deserialize(p *decoder.BytesParser) error {
 	r.TopicId = string(p.ReadUUID())
 	r.Partitions = make([]FetchPartition, p.ReadInt8()-1)
-	for range r.Partitions {
+	for i := range r.Partitions {
 		parts := FetchPartition{}
 		parts.Deserialize(p)
-		r.Partitions = append(r.Partitions, parts)
+		r.Partitions[i] = parts
 		p.ReadInt8() // Tag Buffer
 	}
 	return nil
@@ -92,10 +102,10 @@ func (r *FetchRequest) Deserialize(p *decoder.BytesParser) error {
 	r.SessionEpoch = p.ReadInt32()
 	r.Topics = make([]FetchTopic, p.ReadInt8()-1)
 
-	for range r.Topics {
+	for i := range r.Topics {
 		topic := FetchTopic{}
 		topic.Deserialize(p)
-		r.Topics = append(r.Topics, topic)
+		r.Topics[i] = topic
 	}
 	r.ForgottenTopicsData = make([]ForgottenTopicData, p.ReadInt8()-1)
 	for i := range r.ForgottenTopicsData {
@@ -129,6 +139,14 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].ErrorCode)
 			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].HighWatermark)
 			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].LastStableOffset)
+			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].LogStartOffset)
+			binary.Write(b, binary.BigEndian, int8(len(r.Responses[i].PartitionResponses[j].AbortedTransactions)+1))
+			for k := range r.Responses[i].PartitionResponses[j].AbortedTransactions {
+				binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].AbortedTransactions[k].ProducerId)
+				binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].AbortedTransactions[k].FirstOffset)
+			}
+			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].PreferredReadReplica)
+			
 		}
 	}
 	b.Write([]byte{0}) // Tag Buffer
@@ -136,6 +154,7 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 }
 
 func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (*FetchResponse, error) {
+	fmt.Printf("Header: %+v\n", header)
 	req := &FetchRequest{}
 	req.Deserialize(p)
 
@@ -154,12 +173,14 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 		for j := range req.Topics[i].Partitions {
 			resp.Responses[i].PartitionResponses[j] = FetchPartitionResponse{
 				PartitionIndex:   req.Topics[i].Partitions[j].PartitionId,
-				ErrorCode:        utils.NONE,
+				ErrorCode:        utils.UNKNOWN_TOPIC_ID,
 				HighWatermark:    0,
 				LastStableOffset: 0,
 			}
 		}
 	}
+
+	fmt.Printf("Sending Fetch response: %+v\n", resp)
 
 	return resp, nil
 }
