@@ -6,6 +6,7 @@ type ErrorCode int16
 const (
 	ApiVersions             APIKeys = 18
 	DescribeTopicPartitions APIKeys = 75
+	Fetch 								 APIKeys = 1
 )
 
 const (

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/decoder"
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/request/api"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
@@ -45,7 +46,8 @@ func handleConnection(c net.Conn) {
 		}
 
 		reqHeader := &request.RequestHeader{}
-		reqHeader.Deserialize(data)
+		parser := decoder.NewBytesParser(data)
+		reqHeader.Deserialize(parser)
 
 		respHeader := &request.ResponseHeader{
 			CorrelationId: reqHeader.CorrelationId,
@@ -63,7 +65,7 @@ func handleConnection(c net.Conn) {
 			Send(c, append(respHeaderData, respBodyData...))
 
 		case utils.DescribeTopicPartitions:
-			respBody, err := api.HandleDescribeTopicPartitionsRequest(reqHeader, data)
+			respBody, err := api.HandleDescribeTopicPartitionsRequest(reqHeader, parser)
 			if err != nil {
 				fmt.Printf("Error handling DescribeTopicPartitions request: %s\n", err.Error())
 				os.Exit(1)

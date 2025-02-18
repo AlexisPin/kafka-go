@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/decoder"
 	"github.com/codecrafters-io/kafka-starter-go/app/request"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
@@ -162,8 +163,6 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 					TopicId:   string(topicId),
 				}
 
-				fmt.Printf("Topic: %+v\n", *topic)
-
 				topics[topic.TopicId] = topic
 
 			case PartitionRecordType:
@@ -194,13 +193,10 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 				binary.Read(valueBuffer, binary.BigEndian, &partition.LeaderId)
 				binary.Read(valueBuffer, binary.BigEndian, &partition.LeaderEpoch)
 
-				fmt.Printf("Partition: %+v\n", partition)
-
 				topics[string(topicId)].Partitions = append(topics[string(topicId)].Partitions, partition)
 			}
 		}
 	}
-	fmt.Printf("Topics: %+v\n", topics)
 	topicsList := make(map[string]Topic, len(topics))
 	for _, topic := range topics {
 		topicsList[topic.TopicName] = *topic
@@ -210,29 +206,19 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 
 }
 
-func (r *DescribeTopicPartitionsRequest) Deserialize(c []byte) error {
-	offset := 0
-	arrayLength := int(c[offset]) - 1
+func (r *DescribeTopicPartitionsRequest) Deserialize(p *decoder.BytesParser) error {
+	arrayLength := p.ReadInt8() - 1
 
-	offset += 1
 	for range arrayLength {
-		topicNameLength := int(c[offset]) - 1
-		offset += 1
-		r.TopicNames = append(r.TopicNames, string(c[offset:offset+topicNameLength]))
-		offset += topicNameLength
-		offset += 1 // tag buffer
+		r.TopicNames = append(r.TopicNames, p.ReadCompactString())
+		p.ReadInt8() // tag buffer
 	}
-	r.ResponsePartitionLimit = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
-	offset += 4
-	cursorLen := int16(binary.BigEndian.Uint16(c[offset : offset+2]))
-	if cursorLen > 0 {
-		offset += 2
-		r.Cursor.TopicName = string(c[offset : offset+int(cursorLen)])
-		offset += int(cursorLen)
-		r.Cursor.Partitionindex = int32(binary.BigEndian.Uint32(c[offset : offset+4]))
-		offset += 4
+	r.ResponsePartitionLimit = p.ReadInt32()
+	r.Cursor.TopicName = p.ReadCompactString()
+	if r.Cursor.TopicName != "" {
+		r.Cursor.Partitionindex = p.ReadInt32()
 	}
-	offset += 1 // tag buffer
+	p.ReadInt8() // tag buffer
 	return nil
 }
 
@@ -279,7 +265,7 @@ func (r *Partition) Serialize() ([]byte, error) {
 
 func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 	b := new(bytes.Buffer)
-	b.Write([]byte{0})
+	b.Write([]byte{0}) // Tag Buffer
 	binary.Write(b, binary.BigEndian, r.ThrottleTime)
 	binary.Write(b, binary.BigEndian, int8(len(r.Topics)+1))
 	for _, topic := range r.Topics {
@@ -291,9 +277,9 @@ func (r *DescribeTopicPartitionsResponse) Serialize() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byte) (*DescribeTopicPartitionsResponse, error) {
+func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, p *decoder.BytesParser) (*DescribeTopicPartitionsResponse, error) {
 	request := &DescribeTopicPartitionsRequest{}
-	request.Deserialize(data[req.Size:])
+	request.Deserialize(p)
 
 	response := &DescribeTopicPartitionsResponse{
 		ThrottleTime: 0,
@@ -307,7 +293,6 @@ func HandleDescribeTopicPartitionsRequest(req *request.RequestHeader, data []byt
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Request: %+v\n", request)
 	for _, topicName := range request.TopicNames {
 		curTopic, ok := topics[topicName]
 		errorCode := utils.UNKNOWN_TOPIC_OR_PARTITION

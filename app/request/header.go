@@ -3,6 +3,7 @@ package request
 import (
 	"encoding/binary"
 
+	"github.com/codecrafters-io/kafka-starter-go/app/decoder"
 	"github.com/codecrafters-io/kafka-starter-go/app/utils"
 )
 
@@ -25,16 +26,11 @@ func (r *ResponseHeader) Serialize() ([]byte, error) {
 	return res, nil
 }
 
-func (r *RequestHeader) Deserialize(b []byte) error {
-	r.ApiKey = utils.APIKeys(binary.BigEndian.Uint16(b[:2]))
-	r.ApiVersion = int16(binary.BigEndian.Uint16(b[2:4]))
-	r.CorrelationId = int32(binary.BigEndian.Uint32(b[4:8]))
-	clientIdLength := uint16(binary.BigEndian.Uint16(b[8:10]))
-	if clientIdLength > 0 {
-		r.ClientId = string(b[10 : 10+clientIdLength])
-	}
-	size := 10 + clientIdLength
-	size += 1 // tag buffer
-	r.Size = uint(size)
+func (r *RequestHeader) Deserialize(p *decoder.BytesParser) error {
+	r.ApiKey = utils.APIKeys(p.ReadInt16())
+	r.ApiVersion = int16(p.ReadInt16())
+	r.CorrelationId = int32(p.ReadInt32())
+	r.ClientId = p.ReadNullableString()
+	p.ReadInt8() // Tag Buffer
 	return nil
 }

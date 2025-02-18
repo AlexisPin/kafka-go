@@ -90,5 +90,11 @@ func HandleApiVersionsRequest(req *request.RequestHeader) (*ApiVersionsResponse,
 		MaxVersion: 0,
 		TagBuffer:  []byte{0},
 	})
+	response.APIVersions = append(response.APIVersions, APIVersions{
+		ApiKey:     int16(utils.Fetch),
+		MinVersion: 0,
+		MaxVersion: 16,
+		TagBuffer:  []byte{0},
+	})
 	return response, nil
 }
