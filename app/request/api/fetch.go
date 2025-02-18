@@ -54,21 +54,20 @@ type FetchResponseTopic struct {
 }
 
 type FetchPartitionResponse struct {
-	PartitionIndex   int32
-	ErrorCode        utils.ErrorCode
-	HighWatermark    int64
-	LastStableOffset int64
-	LogStartOffset	 int64
-	AbortedTransactions []AbortedTransaction
+	PartitionIndex       int32
+	ErrorCode            utils.ErrorCode
+	HighWatermark        int64
+	LastStableOffset     int64
+	LogStartOffset       int64
+	AbortedTransactions  []AbortedTransaction
 	PreferredReadReplica int32
+	Records              []byte
 }
 
 type AbortedTransaction struct {
-	ProducerId int64
+	ProducerId  int64
 	FirstOffset int64
 }
-
-
 
 func (r *FetchPartition) Deserialize(p *decoder.BytesParser) error {
 	r.PartitionId = p.ReadInt32()
@@ -107,6 +106,7 @@ func (r *FetchRequest) Deserialize(p *decoder.BytesParser) error {
 		topic.Deserialize(p)
 		r.Topics[i] = topic
 	}
+
 	r.ForgottenTopicsData = make([]ForgottenTopicData, p.ReadInt8()-1)
 	for i := range r.ForgottenTopicsData {
 		r.ForgottenTopicsData[i].TopicId = string(p.ReadUUID())
@@ -130,24 +130,29 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 
 	// Responses
 	binary.Write(b, binary.BigEndian, int8(len(r.Responses)+1))
-	for i := range r.Responses {
-		binary.Write(b, binary.BigEndian, []byte(r.Responses[i].TopicId))
+	for _, response := range r.Responses {
+		binary.Write(b, binary.BigEndian, []byte(response.TopicId))
+		binary.Write(b, binary.BigEndian, int8(len(response.PartitionResponses)+1))
 
-		binary.Write(b, binary.BigEndian, int8(len(r.Responses[i].PartitionResponses)+1))
-		for j := range r.Responses[i].PartitionResponses {
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].PartitionIndex)
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].ErrorCode)
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].HighWatermark)
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].LastStableOffset)
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].LogStartOffset)
-			binary.Write(b, binary.BigEndian, int8(len(r.Responses[i].PartitionResponses[j].AbortedTransactions)+1))
-			for k := range r.Responses[i].PartitionResponses[j].AbortedTransactions {
-				binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].AbortedTransactions[k].ProducerId)
-				binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].AbortedTransactions[k].FirstOffset)
+		// Partitions
+		for _, partition := range response.PartitionResponses {
+			binary.Write(b, binary.BigEndian, partition.PartitionIndex)
+			binary.Write(b, binary.BigEndian, partition.ErrorCode)
+			binary.Write(b, binary.BigEndian, partition.HighWatermark)
+			binary.Write(b, binary.BigEndian, partition.LastStableOffset)
+			binary.Write(b, binary.BigEndian, partition.LogStartOffset)
+			binary.Write(b, binary.BigEndian, int8(len(partition.AbortedTransactions)+1))
+
+			for _, at := range partition.AbortedTransactions {
+				binary.Write(b, binary.BigEndian, at.ProducerId)
+				binary.Write(b, binary.BigEndian, at.FirstOffset)
+				b.Write([]byte{0}) // Tag Buffer
 			}
-			binary.Write(b, binary.BigEndian, r.Responses[i].PartitionResponses[j].PreferredReadReplica)
-			
+			binary.Write(b, binary.BigEndian, partition.PreferredReadReplica)
+			b.Write([]byte{0}) // Records
+			b.Write([]byte{0}) // Tag Buffer
 		}
+		b.Write([]byte{0}) // Tag Buffer
 	}
 	b.Write([]byte{0}) // Tag Buffer
 	return b.Bytes(), nil
@@ -172,10 +177,14 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 		resp.Responses[i].PartitionResponses = make([]FetchPartitionResponse, len(req.Topics[i].Partitions))
 		for j := range req.Topics[i].Partitions {
 			resp.Responses[i].PartitionResponses[j] = FetchPartitionResponse{
-				PartitionIndex:   req.Topics[i].Partitions[j].PartitionId,
-				ErrorCode:        utils.UNKNOWN_TOPIC_ID,
-				HighWatermark:    0,
-				LastStableOffset: 0,
+				PartitionIndex:       req.Topics[i].Partitions[j].PartitionId,
+				ErrorCode:            utils.UNKNOWN_TOPIC_ID,
+				HighWatermark:        0,
+				LastStableOffset:     0,
+				LogStartOffset:       0,
+				AbortedTransactions:  []AbortedTransaction{},
+				PreferredReadReplica: 0,
+				Records:              []byte{},
 			}
 		}
 	}
