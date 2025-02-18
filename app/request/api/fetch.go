@@ -49,7 +49,7 @@ type FetchResponse struct {
 }
 
 type FetchResponseTopic struct {
-	TopicId            string
+	TopicId    string
 	Partitions []FetchPartitionResponse
 }
 
@@ -158,10 +158,14 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+var metadataTopics, _ = ParseMetadataLogFile()
+
 func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (*FetchResponse, error) {
 	req := &FetchRequest{}
 	req.Deserialize(p)
 	fmt.Printf("Fetch Request: %+v\n", req)
+
+	isTopicValid := map[string]bool{}
 
 	resp := &FetchResponse{
 		ThrottleTimeMs: 0,
@@ -170,13 +174,23 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 		Responses:      make([]FetchResponseTopic, len(req.Topics)),
 	}
 
-	for i := range req.Topics {
-		resp.Responses[i].TopicId = req.Topics[i].TopicId
-		resp.Responses[i].Partitions = make([]FetchPartitionResponse, len(req.Topics[i].Partitions))
-		for j, partition := range req.Topics[i].Partitions {
+	for i, topic := range req.Topics {
+		for _, metadataTopic := range metadataTopics {
+			if topic.TopicId == metadataTopic.TopicId {
+				isTopicValid[topic.TopicId] = true
+			}
+		}
+
+		resp.Responses[i].TopicId = topic.TopicId
+		resp.Responses[i].Partitions = make([]FetchPartitionResponse, len(topic.Partitions))
+		errorCode := utils.NONE
+		if !isTopicValid[topic.TopicId] {
+			errorCode = utils.UNKNOWN_TOPIC_ID
+		}
+		for j, partition := range topic.Partitions {
 			resp.Responses[i].Partitions[j] = FetchPartitionResponse{
 				PartitionIndex:       partition.PartitionId,
-				ErrorCode:            utils.UNKNOWN_TOPIC_ID,
+				ErrorCode:            errorCode,
 				HighWatermark:        0,
 				LastStableOffset:     0,
 				LogStartOffset:       0,

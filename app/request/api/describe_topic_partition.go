@@ -203,7 +203,6 @@ func ParseMetadataLogFile() (map[string]Topic, error) {
 	}
 
 	return topicsList, nil
-
 }
 
 func (r *DescribeTopicPartitionsRequest) Deserialize(p *decoder.BytesParser) error {
