@@ -149,7 +149,8 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 				b.Write([]byte{0}) // Tag Buffer
 			}
 			binary.Write(b, binary.BigEndian, partition.PreferredReadReplica)
-			b.Write([]byte{0}) // Records
+			binary.Write(b, binary.BigEndian, int8(len(partition.Records)+1))
+			b.Write(partition.Records)
 			b.Write([]byte{0}) // Tag Buffer
 		}
 		b.Write([]byte{0}) // Tag Buffer
@@ -163,9 +164,8 @@ var metadataTopics, _ = ParseMetadataLogFile()
 func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (*FetchResponse, error) {
 	req := &FetchRequest{}
 	req.Deserialize(p)
-	fmt.Printf("Fetch Request: %+v\n", req)
 
-	isTopicValid := map[string]bool{}
+	isTopicValid := map[string]string{}
 
 	resp := &FetchResponse{
 		ThrottleTimeMs: 0,
@@ -175,19 +175,27 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 	}
 
 	for i, topic := range req.Topics {
-		for _, metadataTopic := range metadataTopics {
+		for topicName, metadataTopic := range metadataTopics {
 			if topic.TopicId == metadataTopic.TopicId {
-				isTopicValid[topic.TopicId] = true
+				isTopicValid[topic.TopicId] = topicName
 			}
 		}
 
 		resp.Responses[i].TopicId = topic.TopicId
 		resp.Responses[i].Partitions = make([]FetchPartitionResponse, len(topic.Partitions))
+
 		errorCode := utils.NONE
-		if !isTopicValid[topic.TopicId] {
-			errorCode = utils.UNKNOWN_TOPIC_ID
-		}
+		records := []byte{}
 		for j, partition := range topic.Partitions {
+			if isTopicValid[topic.TopicId] == "" {
+				errorCode = utils.UNKNOWN_TOPIC_ID
+			} else {
+				buffer, err := ReadLogFile(isTopicValid[topic.TopicId], partition.PartitionId)
+				if err != nil {
+					return nil, err
+				}
+				records = buffer
+			}
 			resp.Responses[i].Partitions[j] = FetchPartitionResponse{
 				PartitionIndex:       partition.PartitionId,
 				ErrorCode:            errorCode,
@@ -196,9 +204,19 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 				LogStartOffset:       0,
 				AbortedTransactions:  []AbortedTransaction{},
 				PreferredReadReplica: 0,
-				Records:              []byte{},
+				Records:              records,
 			}
 		}
 	}
 	return resp, nil
+}
+
+func ReadLogFile(topicName string, partitionId int32) ([]byte, error) {
+	filePath := fmt.Sprintf("/tmp/kraft-combined-logs/%s-%d/00000000000000000000.log", topicName, partitionId)
+	buffer, err := utils.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
