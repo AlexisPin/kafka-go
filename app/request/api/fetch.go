@@ -159,11 +159,9 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 }
 
 func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (*FetchResponse, error) {
-	fmt.Printf("Header: %+v\n", header)
 	req := &FetchRequest{}
 	req.Deserialize(p)
-
-	fmt.Printf("Handling Fetch request: %+v\n", req)
+	fmt.Printf("Fetch Request: %+v\n", req)
 
 	resp := &FetchResponse{
 		ThrottleTimeMs: 0,
@@ -188,8 +186,5 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 			}
 		}
 	}
-
-	fmt.Printf("Sending Fetch response: %+v\n", resp)
-
 	return resp, nil
 }
