@@ -61,7 +61,12 @@ type FetchPartitionResponse struct {
 	LogStartOffset       int64
 	AbortedTransactions  []AbortedTransaction
 	PreferredReadReplica int32
-	Records              []byte
+	Records              []Record
+}
+
+type Record struct {
+	BatchLength int32
+	RecordBatch []byte
 }
 
 type AbortedTransaction struct {
@@ -150,7 +155,9 @@ func (r *FetchResponse) Serialize() ([]byte, error) {
 			}
 			binary.Write(b, binary.BigEndian, partition.PreferredReadReplica)
 			binary.Write(b, binary.BigEndian, int8(len(partition.Records)+1))
-			b.Write(partition.Records)
+			for _, record := range partition.Records {
+				b.Write(record.RecordBatch)
+			}
 			b.Write([]byte{0}) // Tag Buffer
 		}
 		b.Write([]byte{0}) // Tag Buffer
@@ -185,16 +192,16 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 		resp.Responses[i].Partitions = make([]FetchPartitionResponse, len(topic.Partitions))
 
 		errorCode := utils.NONE
-		records := []byte{}
+		records := []Record{}
 		for j, partition := range topic.Partitions {
 			if isTopicValid[topic.TopicId] == "" {
 				errorCode = utils.UNKNOWN_TOPIC_ID
 			} else {
-				buffer, err := ReadLogFile(isTopicValid[topic.TopicId], partition.PartitionId)
+				records_batch, err := ReadLogFile(isTopicValid[topic.TopicId], partition.PartitionId)
 				if err != nil {
 					return nil, err
 				}
-				records = buffer
+				records = records_batch
 			}
 			resp.Responses[i].Partitions[j] = FetchPartitionResponse{
 				PartitionIndex:       partition.PartitionId,
@@ -211,12 +218,26 @@ func HandleFetchRequest(header *request.RequestHeader, p *decoder.BytesParser) (
 	return resp, nil
 }
 
-func ReadLogFile(topicName string, partitionId int32) ([]byte, error) {
+func ReadLogFile(topicName string, partitionId int32) ([]Record, error) {
 	filePath := fmt.Sprintf("/tmp/kraft-combined-logs/%s-%d/00000000000000000000.log", topicName, partitionId)
 	buffer, err := utils.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return buffer.Bytes(), nil
+	message_content := buffer.Bytes()
+	records := make([]Record, 0)
+
+	offset := 0
+	for offset <= len(message_content)-1 {
+		batch_length := int32(binary.BigEndian.Uint32(message_content[offset+8 : offset+12]))
+		batch := message_content[offset : offset+int(batch_length)+12]
+		offset += int(batch_length) + 12
+		records = append(records, Record{
+			BatchLength: batch_length,
+			RecordBatch: batch,
+		})
+	}
+
+	return records, nil
 }
